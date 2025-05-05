@@ -217,29 +217,64 @@ if show_network and enrichment_results:
 
 
 # -----------------------------
-# Association Table
+# Grouped Association Table by Gene
 # -----------------------------
 if show_association_table and enrichment_results:
-    st.subheader("🧬 Association Table")
+    st.subheader("🧬 Grouped Associations by Gene")
 
-    association_data = []
+    grouped_data = {}
 
-    for name, df in enrichment_results.items():
-        for _, row in df.iterrows():
-            genes = row['Genes'].split(';')
-            for gene in genes:
-                proteins = pdf_filtered[pdf_filtered['Gene'] == gene]['Protein'].tolist()
-                metabolites = [row['Term']] if 'HMDB' in name else []
-                diseases = [row['Term']] if 'OMIM Disease' in name else []
-                pathways = [row['Term']] if 'Reactome' in name else []
+    # Initialize dictionary with genes
+    for gene in common_genes:
+        grouped_data[gene] = {
+            "Gene": gene,
+            "Proteins": set(),
+            "Pathways": set(),
+            "Metabolites": set(),
+            "Diseases": set()
+        }
 
-                association_data.append({
-                    'Gene': gene,
-                    'Protein': '; '.join(proteins) if proteins else '',
-                    'Metabolite': '; '.join(metabolites),
-                    'Pathway': '; '.join(pathways),
-                    'Disease': '; '.join(diseases)
-                })
+    # Add proteins
+    for _, row in pdf_filtered.iterrows():
+        gene = row['Gene']
+        protein = row['Protein']
+        if gene in grouped_data:
+            grouped_data[gene]["Proteins"].add(protein)
 
-    association_df = pd.DataFrame(association_data).drop_duplicates()
-    st.dataframe(association_df)
+    # Add pathways
+    if not reactome_df.empty:
+        for _, row in reactome_df.iterrows():
+            pathway = row['Term']
+            for gene in row['Genes'].split(';'):
+                if gene in grouped_data:
+                    grouped_data[gene]["Pathways"].add(pathway)
+
+    # Add metabolites
+    if not hmdb_df.empty:
+        for _, row in hmdb_df.iterrows():
+            metabolite = row['Term']
+            for gene in row['Genes'].split(';'):
+                if gene in grouped_data:
+                    grouped_data[gene]["Metabolites"].add(metabolite)
+
+    # Add diseases
+    if not disgenet_df.empty:
+        for _, row in disgenet_df.iterrows():
+            disease = row['Term']
+            for gene in row['Genes'].split(';'):
+                if gene in grouped_data:
+                    grouped_data[gene]["Diseases"].add(disease)
+
+    # Format for DataFrame
+    grouped_list = []
+    for gene, values in grouped_data.items():
+        grouped_list.append({
+            "Gene": gene,
+            "Proteins": '; '.join(values["Proteins"]) if values["Proteins"] else '',
+            "Pathways": '; '.join(values["Pathways"]) if values["Pathways"] else '',
+            "Metabolites": '; '.join(values["Metabolites"]) if values["Metabolites"] else '',
+            "Diseases": '; '.join(values["Diseases"]) if values["Diseases"] else '',
+        })
+
+    grouped_df = pd.DataFrame(grouped_list)
+    st.dataframe(grouped_df)
